@@ -208,11 +208,12 @@ def rocV(materias, estudiantes):
 
         # Asignación si hay cupo
         if materias[materiaId] > 0:
-            print("asigno:", estudiante, "→", materiaId)
+            #print("asigno:", estudiante, "→", materiaId)
             materiasDadas[estudiante].append(materiaId)
             materias[materiaId] -= 1
         else:
-            print("elimino:", estudiante, "→", materiaId)
+            f = 0
+            #print("elimino:", estudiante, "→", materiaId)
 
         # Quitar materia asignada o no disponible de su lista
         nuevasMaterias = []

@@ -1,67 +1,59 @@
-#Debe ir el algoritmo Bruto
-import io
+from input_output.salida import calcularInsatisfaccionGeneral
 
-def LecturaDatos(prueba):
-    #Leer datos del archivo
-    entrada = io.open("../prueba1.txt", "r")
-    datos = entrada.readlines()
-    entrada.close()
+def combinaciones(materias, solicitudes):
 
-    # 1. Extraer número de materias
-    k = int(datos[0][0])
+    alumnos = list(solicitudes.keys())
+    todas_las_combinaciones = []
 
-    # 2. Procesar materias
-    M = []
-    for i in range(1, k+1):
-        codigo, cupo = datos[i].strip().split(",")
-        M.append((codigo, int(cupo)))
+    def recursiva(i, materias_restantes, asignaciones):
+        # Si todos los alumnos fueron procesados, guardar copia
+        if i == len(alumnos):
+            todas_las_combinaciones.append({a: m.copy() for a, m in asignaciones.items()})
+            return
+        
+        alumno = alumnos[i]
+        opciones = solicitudes[alumno]
+        asignaciones[alumno] = []
 
-    # 3. Número de estudiantes
-    r = int(datos[k+1].strip())
+        # Función para probar todas las combinaciones de materias de este alumno
+        def asignar_materias(j, materias_restantes_local):
+            if j == len(opciones):
+                recursiva(i + 1, materias_restantes_local, asignaciones)
+                return
+            
+            materia, _ = opciones[j]
 
-    # 4. Procesar estudiantes
-    E = []
-    idx = k+2
-    for _ in range(r):
-        est, n_mats = datos[idx].strip().split(",")
-        n_mats = int(n_mats)
-        idx += 1
-        ms = []
-        for _ in range(n_mats):
-            mat, pri = datos[idx].strip().split(",")
-            ms.append((mat, int(pri)))
-            idx += 1
-        E.append((est, ms))
-    return M, E
+            # Caso 1: no tomar esta materia
+            asignar_materias(j + 1, materias_restantes_local.copy())
 
-# Algoritmo de fuerza bruta
-# Restriccion #1: La suma de las prioridades de todas 
-#                 las materias de un estudiante debe ser menor o igual a len(E[i][1]).
-# Restriccion #2: El estudiante no puede pedir materias repetidas.
-def algoritmoBruto(M, E):
-    A = []
-    for i in range(len(E)):
-        est, ms = E[i]
-        asignadas = []
-        prioridades = [pri for _, pri in ms]
+            # Caso 2: tomarla si hay cupos
+            if materias_restantes_local[materia] > 0:
+                materias_restantes_local[materia] -= 1
+                asignaciones[alumno].append(materia)
 
-        if sum(prioridades) <= len(ms)+1:
-            codigos_vistos = []
-            for mat, pri in ms:
-                if mat not in codigos_vistos:
-                    codigos_vistos.append(mat)
-                    for codigo, cupo in M:
-                        if mat == codigo and cupo > 0:
-                            asignadas.append(mat)
-                            M = [(c, cupo-1) if c == codigo else (c, cupo) for c, cupo in M]                            
-        A.append((est, asignadas))
-    return A
+                asignar_materias(j + 1, materias_restantes_local.copy())
 
-#Principal
-path = "../prueba1.txt"
-M, E = LecturaDatos(path)
-A = algoritmoBruto(M, E)
-print("Asignaciones:", A)
-print(M)
-print(E)
+                asignaciones[alumno].pop()
 
+        asignar_materias(0, materias_restantes.copy())
+
+        del asignaciones[alumno]
+
+    recursiva(0, materias.copy(), {})
+    return todas_las_combinaciones
+
+def rocFB(materias, estudiantes):
+    materiasAsignadas = combinaciones(materias, estudiantes)
+    insatisfaccion = []
+    menor = 100
+    combinacion = 0
+    for i in materiasAsignadas:
+        individual = calcularInsatisfaccionGeneral(i, estudiantes, materias)
+        insatisfaccion.append(individual)
+        if individual <= menor:
+            combinacion = i
+            menor = individual
+
+    #print(menor)
+    #print(combinacion)
+    return menor, combinacion
