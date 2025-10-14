@@ -104,4 +104,4 @@ def guardar_resultados(ruta_carpeta, nombre_archivo, materiasAsignadas, insatisf
             for materia in materias:
                 f.write(f"{materia}\n")
 
-    print(f"✅ Archivo creado en: {ruta_completa}")
+    print(f" Archivo creado en: {ruta_completa}")

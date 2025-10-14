@@ -2,16 +2,18 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 from input_output.parser import load_data_from_file, parse_data
 from Voraz.rocV import rocV
+from Dinamica.rocPD import rocPD
 from FuerzaBruta.rocFB import rocFB
 from input_output.salida import calcularInsatisfaccionGeneral, guardar_resultados
 import os
 import time
 
+
 class AppGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Asignación de Materias - Interfaz de Ejecución")
-        self.root.geometry("900x700")  # Ajustada altura para nuevo botón
+        self.root.geometry("900x700")
         self.root.config(bg="#f7f7f7")
 
         # Variables
@@ -34,7 +36,7 @@ class AppGUI:
         frame_buttons.pack(pady=20)
         tk.Button(frame_buttons, text="Ejecutar Fuerza Bruta", command=self.ejecutar_fb, bg="#ffcccc", width=25).pack(side=tk.LEFT, padx=10)
         tk.Button(frame_buttons, text="Ejecutar Algoritmo Voraz", command=self.ejecutar_voraz, bg="#ccffcc", width=25).pack(side=tk.LEFT, padx=10)
-        tk.Button(frame_buttons, text="Ejecutar Algoritmo Dinámico", command=self.ejecutar_dinamico_placeholder, bg="#ccccff", width=25).pack(side=tk.LEFT, padx=10)
+        tk.Button(frame_buttons, text="Ejecutar Algoritmo Dinámico", command=self.ejecutar_dinamico, bg="#ccccff", width=25).pack(side=tk.LEFT, padx=10)
 
         # Sección de visualización
         tk.Label(root, text="Entradas / Salidas:", bg="#f7f7f7", font=("Arial", 13, "bold")).pack(pady=5)
@@ -118,9 +120,91 @@ class AppGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error en el Algoritmo Voraz:\n{e}")
 
-    def ejecutar_dinamico_placeholder(self):
-        """Espacio reservado para el algoritmo dinámico."""
-        messagebox.showinfo("Dinámico", "La funcionalidad del algoritmo dinámico será añadida próximamente.")
+    def ejecutar_dinamico(self):
+        """Ejecuta el algoritmo dinámico, muestra y guarda resultados."""
+        try:
+            if not self.file_path.get():
+                messagebox.showwarning("Advertencia", "Primero selecciona un archivo de entrada.")
+                return
+
+            start = time.time()
+            
+            # Cargar datos usando las funciones existentes
+            data = load_data_from_file(self.file_path.get())
+            materias, estudiantes = parse_data(data)
+            
+            # Convertir formato de diccionarios a tuplas para el algoritmo dinámico
+            k = len(materias)
+            r = len(estudiantes)
+            
+            # M: lista de tuplas (codigo_materia, cupo)
+            M = [(codigo, cupo) for codigo, cupo in materias.items()]
+            
+            # E: lista de tuplas (codigo_estudiante, [(codigo_materia, prioridad), ...])
+            E = [(codigo_est, materias_solicitadas) for codigo_est, materias_solicitadas in estudiantes.items()]
+            
+            # Ejecutar algoritmo dinámico
+            A, insatisfaccion = rocPD(k, r, M, E)
+            
+            elapsed = round(time.time() - start, 3)
+
+            # Convertir A (lista de tuplas) a formato de diccionario para guardar_resultados
+            materiasAsignadas = {}
+            for codigo_est, materias_asignadas in A:
+                # Extraer solo los códigos de las materias (sin prioridades)
+                materiasAsignadas[codigo_est] = [codigo for codigo, _ in materias_asignadas]
+
+            # Guardar resultados usando la función existente
+            out_dir = "Resultados/Dinamico"
+            os.makedirs(out_dir, exist_ok=True)
+            output_filename = f"Resultado_{self.file_name}_Dinamico.txt"
+            guardar_resultados(out_dir, output_filename, materiasAsignadas, insatisfaccion)
+
+            # Mostrar en interfaz
+            self.text_output.insert(tk.END, f"\n=== RESULTADOS ALGORITMO DINÁMICO ({self.file_name}) ===\n")
+            self.text_output.insert(tk.END, f"Insatisfacción General: {insatisfaccion:.6f}\n")
+            self.text_output.insert(tk.END, f"Materias Asignadas:\n")
+            for est, materias in materiasAsignadas.items():
+                self.text_output.insert(tk.END, f"  Estudiante {est}: {materias}\n")
+            self.text_output.insert(tk.END, f"Tiempo de ejecución: {elapsed} segundos\n")
+            self.text_output.insert(tk.END, f"Resultado guardado en: {out_dir}/{output_filename}\n\n")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error en el Algoritmo Dinámico:\n{e}")
+
+    # ---------------- FUNCIONES DEL ALGORITMO DINÁMICO ----------------
+
+    def calcular_gamma(self, num_materias):
+        """Calcula gamma(X) = 3X - 1"""
+        return 3 * num_materias - 1
+
+    def calcular_insatisfaccion_estudiante(self, materias_solicitadas, materias_asignadas):
+        """
+        Calcula la función de insatisfacción de un estudiante j:
+        fj = (1 - |maj|/|msj|) * (Σ prioridades no asignadas / y(|msj|))
+        """
+        num_solicitadas = len(materias_solicitadas)
+        num_asignadas = len(materias_asignadas)
+
+        if num_solicitadas == 0:
+            return 0.0
+
+        gamma_value = self.calcular_gamma(num_solicitadas)
+        codigos_asignados = set()
+        for codigo, _ in materias_asignadas:
+            codigos_asignados.add(codigo)
+
+        suma_prioridades_no_asignadas = 0.0
+        for codigo, prioridad in materias_solicitadas:
+            if codigo not in codigos_asignados:
+                suma_prioridades_no_asignadas = suma_prioridades_no_asignadas + prioridad
+
+        factor_materias = 1 - (num_asignadas / num_solicitadas)
+        factor_prioridades = suma_prioridades_no_asignadas / gamma_value
+        return factor_materias * factor_prioridades
+
+    
+
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
