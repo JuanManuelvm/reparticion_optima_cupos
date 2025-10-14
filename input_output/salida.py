@@ -1,3 +1,5 @@
+import os
+
 def calcularInsatisfaccionGeneral(materiasDadas, estudiantes, materias):
     insatisfaccionesIndividuales = calcularInsatisfaccionIndividual(materiasDadas, estudiantes, materias)
     suma = 0
@@ -17,7 +19,7 @@ def calcularInsatisfaccionIndividual(materiasDadas, estudiantes, materias):
     materiasNoAsignadas = tomarMateriasNoAsignadas(materiasDadas, estudiantes)
     sumas = sumarPrioridades(materiasNoAsignadas)
     resultadosR = formulaR(estudiantes)
-    print(resultadosR)
+    #print(resultadosR)
 
     segundosFactores = []
     for indice, valor in enumerate(sumas):
@@ -62,9 +64,6 @@ def formulaR(estudiantes):
         r = (3 * numeroDeMateriasSolicitadas) - 1
         resultadosR.append(r)
     return resultadosR
-
-
-import os
 
 """
 Crea un archivo .txt en la carpeta especificada con el formato:
