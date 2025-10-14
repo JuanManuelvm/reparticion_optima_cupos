@@ -62,3 +62,47 @@ def formulaR(estudiantes):
         r = (3 * numeroDeMateriasSolicitadas) - 1
         resultadosR.append(r)
     return resultadosR
+
+
+import os
+
+"""
+Crea un archivo .txt en la carpeta especificada con el formato:
+    
+Costo
+e1,a1
+m11
+m12
+...
+e2,a2
+...
+    
+Parámetros:
+    ruta_carpeta (str): ruta de la carpeta donde guardar el archivo.
+    nombre_archivo (str): nombre del archivo (ej: 'Resultado1.txt')
+    materiasAsignadas (dict): diccionario {estudiante: [materias_asignadas]}
+    insatisfaccionGeneral (float o int): valor de la insatisfacción general.
+"""
+def guardar_resultados(ruta_carpeta, nombre_archivo, materiasAsignadas, insatisfaccionGeneral):
+    
+    # Crear carpeta si no existe
+    os.makedirs(ruta_carpeta, exist_ok=True)
+
+    # Ruta completa del archivo
+    ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
+
+    # Escribir contenido
+    with open(ruta_completa, 'w', encoding='utf-8') as f:
+        # Primera línea: costo (insatisfacción)
+        f.write(f"{round(insatisfaccionGeneral, 3)}\n")
+
+        # Por cada estudiante, imprimir su info
+        for estudiante, materias in materiasAsignadas.items():
+            # Línea con id del estudiante y número de materias
+            f.write(f"{estudiante},{len(materias)}\n")
+
+            # Luego cada materia en una línea
+            for materia in materias:
+                f.write(f"{materia}\n")
+
+    print(f"✅ Archivo creado en: {ruta_completa}")
