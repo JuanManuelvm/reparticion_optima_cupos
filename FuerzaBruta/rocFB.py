@@ -54,6 +54,6 @@ def rocFB(materias, estudiantes):
             combinacion = i
             menor = individual
 
-    print(menor)
-    print(combinacion)
+    #print(menor)
+    #print(combinacion)
     return menor, combinacion
