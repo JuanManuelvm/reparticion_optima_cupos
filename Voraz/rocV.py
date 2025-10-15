@@ -1,4 +1,5 @@
 from queue import PriorityQueue
+from input_output.salida import calcularInsatisfaccionGeneral
 
 # Algoritmo voraz
 # Recibe un diccionario de materias con sus cupos y un diccionario de estudiantes con la lista de materias a solicitar y prioridades
@@ -69,4 +70,5 @@ def rocV(materias, estudiantes):
 
             cola.put((-nuevaPrioridad, numMatAsigNuevo, numSolicitudesNuevo, estudiante, nuevaMateriaId))
 
-    return materiasDadas
+    insatisfaccionGeneral = calcularInsatisfaccionGeneral(materiasDadas, estudiantes, materias)
+    return materiasDadas, insatisfaccionGeneral

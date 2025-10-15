@@ -4,66 +4,6 @@
 # ========================================
 
 from itertools import combinations
-from functools import lru_cache
-
-
-
-
-def getDataByTxt(file_path):
-    """Lee un archivo de texto y retorna k, r, M, E parseados según el formato especificado."""
-    with open(file_path, 'r') as file:
-        lines = [line.strip() for line in file.readlines()]
-    
-    index = 0
-    
-    # Leer k (número de materias)
-    k = int(lines[index])
-    index += 1
-    
-    # Leer materias M
-    M = []
-    for i in range(k):
-        codigo, cupo = lines[index].split(',')
-        M.append((int(codigo), int(cupo)))
-        index += 1
-    
-    # Leer r (número de estudiantes)
-    r = int(lines[index])
-    index += 1
-    
-    # Leer estudiantes E
-    E = []
-    for j in range(r):
-        codigo_estudiante, num_materias = lines[index].split(',')
-        codigo_estudiante = int(codigo_estudiante)
-        num_materias = int(num_materias)
-        index += 1
-        
-        materias_solicitadas = []
-        for l in range(num_materias):
-            codigo_materia, prioridad = lines[index].split(',')
-            materias_solicitadas.append((int(codigo_materia), int(prioridad)))
-            index += 1
-        
-        E.append((codigo_estudiante, materias_solicitadas))
-    
-    # Validar restricciones
-    for codigo_est, materias in E:
-        suma_prioridades = sum(prioridad for _, prioridad in materias)
-        gamma_value = calcular_gamma(len(materias))
-        
-        if suma_prioridades > gamma_value:
-            raise ValueError(
-                f"Estudiante {codigo_est}: suma de prioridades ({suma_prioridades}) "
-                f"excede γ({len(materias)}) = {gamma_value}"
-            )
-        
-        codigos_materias = [codigo for codigo, _ in materias]
-        if len(codigos_materias) != len(set(codigos_materias)):
-            raise ValueError(f"Estudiante {codigo_est}: tiene materias repetidas")
-    
-    return k, r, M, E
-
 
 def calcular_gamma(num_materias):
     """Calcula gamma(X) = 3X - 1"""
@@ -115,119 +55,6 @@ def calcular_insatisfaccion_general(M, E, A):
 
 
 
-def rocPD_lru(k, r, M, E):
-    """
-    k (int)  : numero de materias disponibles
-    r (int)  : numero de estudiantes
-    M (list) : lista de tuplas (codigo_materia, cupo)
-    E (list) : lista de tuplas (codigo_estudiante, [(codigo_materia, prioridad), ...])
-    """
-    
-    # Crear mapeo de códigos a índices para representación compacta
-    codigos_materias = sorted([codigo for codigo, _ in M])
-    codigo_a_idx = {codigo: i for i, codigo in enumerate(codigos_materias)}
-    idx_a_codigo = {i: codigo for codigo, i in codigo_a_idx.items()}
-    
-    # Cupos iniciales como tupla (inmutable y hasheable)
-    cupos_iniciales = tuple(cupo for _, cupo in sorted(M, key=lambda x: x[0]))
-    
-    # Pre-procesar estudiantes: convertir códigos a índices
-    estudiantes_procesados = []
-    for codigo_est, materias_solicitadas in E:
-        materias_idx = [(codigo_a_idx[codigo], pref) 
-                        for codigo, pref in materias_solicitadas]
-        estudiantes_procesados.append((codigo_est, materias_idx, materias_solicitadas))
-    
-    # Pre-calcular todas las combinaciones posibles para cada estudiante
-    combinaciones_por_estudiante = []
-    for _, materias_idx, _ in estudiantes_procesados:
-        combos = []
-        for size in range(len(materias_idx) + 1):
-            for comb in combinations(materias_idx, size):
-                combos.append(list(comb))
-        combinaciones_por_estudiante.append(combos)
-    
-    @lru_cache(maxsize=None)
-    def dp(j, cupos_tuple):
-        """
-        Calcula la mínima insatisfacción para estudiantes desde j hasta el final.
-        
-        Args:
-            j: índice del estudiante actual
-            cupos_tuple: tupla con cupos restantes (inmutable)
-        
-        Returns:
-            (mejor_asignacion_codificada, mejor_costo)
-        """
-        if j == len(estudiantes_procesados):
-            return [], 0.0
-        
-        codigo_est, materias_idx, materias_solicitadas = estudiantes_procesados[j]
-        mejor_costo = float("inf")
-        mejor_asignacion = None
-        
-        # Probar todas las combinaciones pre-calculadas
-        for maj_idx in combinaciones_por_estudiante[j]:
-            # Verificar disponibilidad de cupos
-            valido = all(cupos_tuple[mat_idx] > 0 for mat_idx, _ in maj_idx)
-            
-            if not valido:
-                continue
-            
-            # Actualizar cupos (crear nueva tupla)
-            nuevos_cupos = list(cupos_tuple)
-            for mat_idx, _ in maj_idx:
-                nuevos_cupos[mat_idx] -= 1
-            nuevos_cupos_tuple = tuple(nuevos_cupos)
-            
-            # Convertir asignación de índices a códigos para calcular insatisfacción
-            maj_codigos = [(idx_a_codigo[mat_idx], pref) for mat_idx, pref in maj_idx]
-            
-            # Calcular insatisfacción del estudiante actual usando la función original
-            fj = calcular_insatisfaccion_estudiante(materias_solicitadas, maj_codigos)
-            
-            # Resolver recursivamente
-            asig_restante, costo_restante = dp(j + 1, nuevos_cupos_tuple)
-            costo_total = fj + costo_restante
-            
-            if costo_total < mejor_costo:
-                mejor_costo = costo_total
-                # Guardar asignación como tupla de códigos (para decodificar después)
-                mejor_asignacion = (tuple(maj_codigos), asig_restante)
-        
-        return mejor_asignacion, mejor_costo
-    
-    # Ejecutar DP
-    asignacion_codificada, costo_total = dp(0, cupos_iniciales)
-    
-    # Decodificar la asignación
-    def decodificar_asignacion(j, asig_cod):
-        """Convierte la asignación codificada a formato legible."""
-        if j == len(estudiantes_procesados):
-            return []
-        
-        codigo_est = estudiantes_procesados[j][0]
-        materias_asignadas, resto = asig_cod
-        
-        resultado = [(codigo_est, list(materias_asignadas))]
-        resultado.extend(decodificar_asignacion(j + 1, resto))
-        return resultado
-    
-    A = decodificar_asignacion(0, asignacion_codificada)
-    
-    # Normalizar el costo
-    costo_normalizado = costo_total / r if r > 0 else 0.0
-    
-    # Estadísticas de memoización
-    info = dp.cache_info()
-    
-    
-    print(f"\nInsatisfacción general mínima: {costo_normalizado:.4f}")
-
-    return A, costo_normalizado
-
-
-
 
 def rocPD(k, r, M, E):
     """
@@ -240,7 +67,7 @@ def rocPD(k, r, M, E):
     - E: lista de (codigo_estudiante, [(codigo_materia, prioridad), ...])
     
     Retorna:
-    - A: asignaciones óptimas
+    - A: asignaciones optimas
     - costo_normalizado: insatisfacción general mínima
     """
     
@@ -261,7 +88,7 @@ def rocPD(k, r, M, E):
     
 
 
-    # Se organizan los cupos en una tupla de manera que queden con el mismo orden que los codigos para que esten sincronizados
+    # se organizan los cupos en una tupla de manera que queden con el mismo orden que los codigos para que esten sincronizados
     # M_ordenado = [(101, 2), (102, 1), (103, 1), (104, 1)]
     M_ordenado = sorted(M, key=lambda x: x[0])
     cupos_lista = []
@@ -293,130 +120,129 @@ def rocPD(k, r, M, E):
         combinaciones.append(combos)
     
     # ============================================================================
-    # FASE 2: PROGRAMACIÓN DINÁMICA CON MEMOIZACIÓN
+    # FASE 2: PROGRAMACION DINÁMICA CON MEMOIZACION
     # ============================================================================
     
-    # Diccionario para memoización: guarda resultados de estados ya calculados
-    # Clave: (j, cupos) donde j es índice de estudiante y cupos es tupla de cupos restantes
-    # Valor: (mejor_asignacion, mejor_costo) solución óptima para ese estado
+    # diccionario para memoizacion: guarda resultados de estados ya calculados
+    # clave: (j, cupos) donde j es indice de estudiante y cupos es tupla de cupos restantes
+    # valor: (mejor_asignacion, mejor_costo) solucion optima para ese estado
     memo = {}  # -> {(0, (2,1,1,1)): ([...], 1.5), (1, (1,0,1,1)): ([...], 0.8), ...}
     
-    # Función recursiva con memoización
     def dp(j, cupos):
         """
-        Función recursiva que implementa programación dinámica con memoización.
+        funcion recursiva que implementa programación dinamica con memoizacion.
         
-        Resuelve el subproblema: ¿Cuál es la asignación óptima para los estudiantes
+        resuelve el subproblema: ¿cuál es la asignación optima para los estudiantes
         desde j hasta el final, dado que tenemos 'cupos' disponibles?
         
         Parámetros:
-        - j: índice del estudiante actual (de 0 a len(estudiantes)-1)
-        - cupos: tupla con cupos restantes de cada materia (índice i = materia i)
+        - j: indice del estudiante actual (de 0 a len(estudiantes)-1)
+        - cupos: tupla con cupos restantes de cada materia (indice i = materia i)
 
-                Ejemplo: (2, 1, 0, 3) significa mat[0]=2 cupos, mat[1]=1, mat[2]=0, mat[3]=3
+                ejemplo: (2, 1, 0, 3) significa mat[0]=2 cupos, mat[1]=1, mat[2]=0, mat[3]=3
         
         Retorna:
-        - (mejor_asignacion, mejor_costo): tupla con la asignación óptima y su costo
+        - (mejor_asignacion, mejor_costo): tupla con la asignación optima y su costo
         mejor_asignacion: estructura recursiva ((materias_est_j, resto_asignaciones))
         mejor_costo: float con la insatisfacción total acumulada
         
-        Estado del DP:
-        - Espacio de estados: (j, cupos) con j ∈ [0, n] y cupos ∈ ∏[0, Ci]
-        - Subestructura óptima: solución óptima de (j, cupos) se construye de (j+1, cupos_actualizados)
-        - Solapamiento: el mismo estado (j, cupos) puede alcanzarse por múltiples caminos
+        estado del DP:
+        - espacio de estados: (j, cupos) con j ∈ [0, n] y cupos ∈ ∏[0, Ci]
+        - subestructura optima: solución optima de (j, cupos) se construye de (j+1, cupos_actualizados)
+        - solapamiento: el mismo estado (j, cupos) puede alcanzarse por multiples caminos
         """
         
-        # PASO 1: Verificar memoización
-        # Crear clave única para el estado actual (j, cupos)
+        # PASO 1: verificar memoizacion
+        # crear clave unica para el estado actual (j, cupos)
         clave = (j, cupos)
         
-        # Si ya calculamos este estado antes, devolver resultado guardado (cache hit)
+        # si ya calculamos este estado antes, devolver resultado guardado (cache hit)
         if clave in memo:
             return memo[clave]  # O(1) - evita recalcular
         
-        # PASO 2: Caso base
-        # Si ya procesamos todos los estudiantes, no hay más insatisfacción que agregar
+        # PASO 2: caso base
+        # si ya procesamos todos los estudiantes, no hay mas insatisfaccion que agregar
         if j == len(estudiantes):
             resultado = ([], 0.0)  # (asignaciones_vacías, costo_cero)
-            memo[clave] = resultado  # Guardar en memo
+            memo[clave] = resultado  # guardar en memo
             return resultado
         
-        # PASO 3: Caso recursivo
-        # Obtener información del estudiante actual
+        # PASO 3: caso recursivo
+        # obtener información del estudiante actual
         codigo_est, materias_idx, materias_solicitadas = estudiantes[j]
         #            ↑               ↑
-        #            índices         códigos originales
+        #            indices         codigos originales
         
-        # Inicializar búsqueda de la mejor opción
-        mejor_costo = float("inf")  # Empezar con costo infinito
-        mejor_asignacion = None     # No hay asignación aún
+        # inicializar busqueda de la mejor opcion
+        mejor_costo = float("inf")  # empezar con costo infinito
+        mejor_asignacion = None     # no hay asignacion aun
         
-        # PASO 4: Explorar todas las combinaciones posibles para el estudiante j
+        # PASO 4: explorar todas las combinaciones posibles para el estudiante j
         # combinaciones[j] = [[], [(0,p1)], [(1,p2)], [(0,p1),(1,p2)], ...]
         for combinacion in combinaciones[j]:
             # combinacion es una posible asignación: ej. [(0, 0.9), (2, 0.7)]
             #                                              ↑         ↑
             #                                          índice_mat  prioridad
             
-            # SUB-PASO 4.1: Verificar disponibilidad de cupos
-            # Revisar que TODAS las materias en la combinación tengan cupo > 0
+            # SUB-PASO 4.1: verificar disponibilidad de cupos
+            # revisar que TODAS las materias en la combinacion tengan cupo > 0
             tiene_cupo = True
             for mat_idx, _ in combinacion:
-                if cupos[mat_idx] <= 0:  # Si alguna materia no tiene cupo
+                if cupos[mat_idx] <= 0:  # si alguna materia no tiene cupo
                     tiene_cupo = False
-                    break  # No revisar más, esta combinación no es válida
+                    break  # no revisar más, esta combinacion no es válida
             
-            # Si no hay cupo disponible, saltar a la siguiente combinación
+            # si no hay cupo disponible, saltar a la siguiente combinacion
             if not tiene_cupo:
                 continue
             
-            # SUB-PASO 4.2: Actualizar cupos después de asignar esta combinación
-            # Crear nueva tupla de cupos con las materias asignadas decrementadas
-            nuevos_cupos = list(cupos)  # Convertir a lista para modificar
+            # SUB-PASO 4.2: actualizar cupos despues de asignar esta combinacion
+            # crear nueva tupla de cupos con las materias asignadas decrementadas
+            nuevos_cupos = list(cupos)  # convertir a lista para modificar
             for mat_idx, _ in combinacion:
-                nuevos_cupos[mat_idx] = nuevos_cupos[mat_idx] - 1  # Decrementar cupo
-            # Ejemplo: cupos=(2,1,1,1), combinacion=[(0,p1)] → nuevos_cupos=(1,1,1,1)
+                nuevos_cupos[mat_idx] = nuevos_cupos[mat_idx] - 1  # decrementar cupo
+            # ejemplo: cupos=(2,1,1,1), combinacion=[(0,p1)] -> nuevos_cupos=(1,1,1,1)
             
-            # SUB-PASO 4.3: Convertir índices a códigos para calcular insatisfacción
-            # La función calcular_insatisfaccion_estudiante necesita códigos, no índices
+            # SUB-PASO 4.3: convertir indices a codigos para calcular insatisfaccion
+            # la funcion calcular_insatisfaccion_estudiante necesita codigos, no indices
             materias_asignadas = []  # -> [(101, 0.9), (103, 0.7)]
             for mat_idx, pref in combinacion:
-                codigo = codigos[mat_idx]  # Convertir índice → código usando lista codigos
+                codigo = codigos[mat_idx]  # convertir indice -> codigo usando lista codigos
                 materias_asignadas.append((codigo, pref))
             
-            # SUB-PASO 4.4: Calcular insatisfacción del estudiante actual
+            # SUB-PASO 4.4: calcular insatisfaccion del estudiante actual
             # fj = (1 - |asignadas|/|solicitadas|) * (Σ prioridades no asignadas / gamma)
             insatisfaccion = calcular_insatisfaccion_estudiante(
                 materias_solicitadas,  # Códigos originales: [(101, 0.9), (102, 0.8)]
                 materias_asignadas     # Códigos asignados: [(101, 0.9)]
             )
             
-            # SUB-PASO 4.5: Resolver recursivamente para los siguientes estudiantes
-            # Llamada recursiva: ¿cuál es la solución óptima para estudiantes j+1...n?
+            # SUB-PASO 4.5: resolver recursivamente para los siguientes estudiantes
+            # llamada recursiva: ¿cual es la solucion optima para estudiantes j+1...n?
             resto_asignaciones, resto_costo = dp(j + 1, tuple(nuevos_cupos))
             #                                      ↑              ↑
             #                              siguiente est.    cupos actualizados
             
-            # Costo total = insatisfacción del estudiante j + costo de j+1...n
+            # costo total = insatisfacción del estudiante j + costo de j+1...n
             costo_total = insatisfaccion + resto_costo
             
-            # SUB-PASO 4.6: Actualizar si encontramos una mejor solución
-            # Principio de optimalidad: elegir la combinación que minimice costo total
+            # SUB-PASO 4.6: actualizar si encontramos una mejor solucion
+            # principio de optimalidad: elegir la combinacion que minimice costo total
             if costo_total < mejor_costo:
                 mejor_costo = costo_total
-                # Guardar asignación como estructura recursiva:
+                # guardar asignacion como estructura recursiva:
                 # (materias_del_estudiante_j, (materias_del_j+1, (materias_del_j+2, ...)))
                 mejor_asignacion = (tuple(materias_asignadas), resto_asignaciones)
         
-        # PASO 5: Guardar resultado en memoización antes de retornar
+        # PASO 5: guardar resultado en memoizacion antes de retornar
         resultado = (mejor_asignacion, mejor_costo)
-        memo[clave] = resultado  # Cache miss → calcular y guardar
+        memo[clave] = resultado  # cache miss -> calcular y guardar
         return resultado
     
-    # Ejecutar programación dinámica
+    # ejecutar programacion dinamica
     asignaciones_codificadas, costo_total = dp(0, cupos_iniciales)
     
-    # Decodificar resultado
+    # decodificar resultado
     def decodificar(j, asignacion_codificada):
         if j == len(estudiantes):
             return []
@@ -433,15 +259,5 @@ def rocPD(k, r, M, E):
     
     A = decodificar(0, asignaciones_codificadas)
     costo_normalizado = costo_total / r if r > 0 else 0.0
-    
-    # Estadísticas de memoización
-    print(f"\nEstadísticas de memoización:")
-    #print(f"  Estados únicos calculados: {len(memo)}")
-    print("\nRESULTADO FINAL:")
-    print("-" * 70)
-    print("Asignaciones óptimas (A):")
-    for est, materias in A:
-        print(f"  Estudiante {est}: {[codigo for codigo, _ in materias]}")
-    print(f"  Insatisfacción general mínima: {costo_normalizado:.4f}")
     
     return A, costo_normalizado

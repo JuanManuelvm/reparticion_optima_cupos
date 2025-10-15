@@ -83,25 +83,34 @@ Parámetros:
     insatisfaccionGeneral (float o int): valor de la insatisfacción general.
 """
 def guardar_resultados(ruta_carpeta, nombre_archivo, materiasAsignadas, insatisfaccionGeneral):
-    
-    # Crear carpeta si no existe
-    os.makedirs(ruta_carpeta, exist_ok=True)
+    """
+    Guarda los resultados de cualquier algoritmo (dict o list) en un archivo .txt
+    """
+    import os
 
-    # Ruta completa del archivo
+    os.makedirs(ruta_carpeta, exist_ok=True)
     ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
 
-    # Escribir contenido
     with open(ruta_completa, 'w', encoding='utf-8') as f:
-        # Primera línea: costo (insatisfacción)
+        # Primera línea: costo (insatisfacción general)
         f.write(f"{round(insatisfaccionGeneral, 3)}\n")
 
-        # Por cada estudiante, imprimir su info
-        for estudiante, materias in materiasAsignadas.items():
-            # Línea con id del estudiante y número de materias
-            f.write(f"{estudiante},{len(materias)}\n")
+        # Si es diccionario (Voraz, Fuerza Bruta)
+        if isinstance(materiasAsignadas, dict):
+            for estudiante, materias in materiasAsignadas.items():
+                f.write(f"{estudiante},{len(materias)}\n")
+                for materia in materias:
+                    f.write(f"{materia}\n")
 
-            # Luego cada materia en una línea
-            for materia in materias:
-                f.write(f"{materia}\n")
+        # Si es lista (Dinámico)
+        elif isinstance(materiasAsignadas, list):
+            for estudiante, materias in materiasAsignadas:
+                codigos = [codigo for codigo, _ in materias]
+                f.write(f"{estudiante},{len(codigos)}\n")
+                for codigo in codigos:
+                    f.write(f"{codigo}\n")
+
+        else:
+            raise TypeError(f"Formato no soportado para materiasAsignadas: {type(materiasAsignadas)}")
 
     print(f" Archivo creado en: {ruta_completa}")
