@@ -1,55 +1,44 @@
-# Cargar datos desde un archivo .txt
-def load_data_from_file(filename):
-    with open(filename, 'r') as file:
-        data = file.read().strip().splitlines()
-    return data
+def calcular_gamma(num_materias):
+        return 3 * num_materias - 1
 
-# Interpretar y procesar los datos
-# Recibe la data como una lista de strings
-# Devuelve dos diccionarios: materias y estudiantes
-def parse_data(data):
-    # Tomar el primer valor de data como el número de asignaturas
-    numero_de_asignaturas = int(data[0])
+def getDataByTxt(file_path):
+    with open(file_path, 'r') as file:
+        lines = [line.strip() for line in file.readlines()]
 
-    # Inicializar diccionario para las materias
-    materias = {}
+    index = 0
+    k = int(lines[index])
+    index += 1
 
-    # Iterar sobre las siguientes lineas de data tomando en cuenta el número de asignaturas
-    for i in range(1, numero_de_asignaturas + 1):
-        # Dividir los valores separados por coma y convertirlos a enteros
-        codigo, cupo = map(int, data[i].split(','))
-        materias[codigo] = cupo
-    
-    # Tomar el siguiente valor como el número de estudiantes
-    numero_de_estudiantes = int(data[numero_de_asignaturas + 1])
+    M = []
+    for _ in range(k):
+        codigo, cupo = lines[index].split(',')
+        M.append((int(codigo), int(cupo)))
+        index += 1
 
-    # Inicializar diccionario para los estudiantes
-    estudiantes = {}
+    r = int(lines[index])
+    index += 1
 
-    # Índice inicial para leer los datos de los estudiantes
-    idx = numero_de_asignaturas + 2
+    E = []
+    for _ in range(r):
+        codigo_est, num_mats = lines[index].split(',')
+        codigo_est = int(codigo_est)
+        num_mats = int(num_mats)
+        index += 1
+        materias = []
+        for _ in range(num_mats):
+            cod_mat, prioridad = lines[index].split(',')
+            materias.append((int(cod_mat), int(prioridad)))
+            index += 1
+        E.append((codigo_est, materias))
 
-    # Iterar sobre las siguientes lineas de data tomando en cuenta el número de estudiantes (cada estudiante tiene un bloque de información) 
-    for i in range(numero_de_estudiantes):
-        # Leer el código del estudiante y el número de materias que solicita
-        codigo_estudiante, num_materias = map(int, data[idx].split(','))
+    # Validaciones
+    for codigo_est, materias in E:
+        suma_prioridades = sum(p for _, p in materias)
+        gamma_value = calcular_gamma(len(materias))
+        if suma_prioridades > gamma_value:
+            raise ValueError(f"Estudiante {codigo_est}: suma de prioridades ({suma_prioridades}) excede γ({len(materias)})={gamma_value}")
+        codigos = [c for c, _ in materias]
+        if len(codigos) != len(set(codigos)):
+            raise ValueError(f"Estudiante {codigo_est}: materias repetidas")
 
-        # Mover al siguiente índice para leer las materias solicitadas
-        idx += 1
-
-        # Inicializar lista para las solicitudes de las materias del estudiante
-        solicitudes = []
-
-        # Leer las materias solicitadas por el estudiante según el número de materias (numero de lineas del bloque)
-        for j in range(num_materias):
-            # Leer el código de la materia y la prioridad
-            materia, prioridad = map(int, data[idx].split(','))
-            # Agregar la solicitud a la lista
-            solicitudes.append((materia, prioridad))
-            # Mover al siguiente índice
-            idx += 1
-
-        # Agregar el estudiante y sus solicitudes de materias al diccionario
-        estudiantes[codigo_estudiante] = solicitudes
-    
-    return materias, estudiantes
+    return k, r, M, E
