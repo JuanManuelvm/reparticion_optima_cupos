@@ -2,6 +2,7 @@ import os
 
 def calcularInsatisfaccionGeneral(materiasDadas, estudiantes, materias):
     insatisfaccionesIndividuales = calcularInsatisfaccionIndividual(materiasDadas, estudiantes, materias)
+    print("Insatisfacciones individuales:", insatisfaccionesIndividuales)
     suma = 0
     for insatisfaccion in insatisfaccionesIndividuales:
         suma += insatisfaccion

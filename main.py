@@ -98,8 +98,10 @@ class AppGUI:
             start = time.time()
             data = load_data_from_file(self.file_path.get())
             materias, estudiantes = parse_data(data)
-            materiasAsignadas = rocV(materias, estudiantes)
-            insatisfaccion = calcularInsatisfaccionGeneral(materiasAsignadas, estudiantes, materias)
+            materiasAsignadas, insatisfaccion = rocV(materias, estudiantes)
+            insatisfaccion2 = calcularInsatisfaccionGeneral(materiasAsignadas, estudiantes, materias)
+            print(insatisfaccion)
+            print(insatisfaccion2)
             elapsed = round(time.time() - start, 3)
 
             # Guardar resultados con el mismo formato y nombre de la prueba
